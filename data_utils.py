@@ -71,7 +71,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
 
         if self.use_spk:
             spk_filename = filename.replace(".wav", ".npy")
-            spk_filename = spk_filename.replace("DUMMY", "dataset/spk")
+            spk_filename = spk_filename.replace("DUMMY", "dataset/spk_emb")
             spk = torch.from_numpy(np.load(spk_filename))
 
         if not self.use_sr:

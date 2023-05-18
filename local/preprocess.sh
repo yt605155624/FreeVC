@@ -1,10 +1,10 @@
 #!/bin/bash
-stage=4
-stop_stage=4
+stage=0
+stop_stage=100
 
 sr_min=68
 sr_max=92
-root_dir='/nfs-speech-tx/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/FreeVC'
+root_dir='/nfs-speech-tx/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/FreeVC'
 
 # for VCTK only
 # 同时下采样到 16k 和 22.05k, 22.05k 用于 preprocess_sr, 因为 HiFiGAN 是 22.05k 的 
@@ -55,53 +55,53 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         --sr=16000 \
         --config=hifigan/config.json \
         --in_dir=dataset/vctk-22k \
-        --wav_dir=${root_dir}/dataset/sr_22k/wav \
-        --ssl_dir=${root_dir}/dataset/sr_22k/wavlm \
+        --wav_dir=${root_dir}/dataset/sr/wav \
+        --ssl_dir=${root_dir}/dataset/sr/wavlm \
         --min=68 \
         --max=72 \
         --num_workers=20 & CUDA_VISIBLE_DEVICES=0 python3 preprocess_sr.py \
             --sr=16000 \
             --config=hifigan/config.json \
             --in_dir=dataset/vctk-22k \
-            --wav_dir=${root_dir}/dataset/sr_22k/wav \
-            --ssl_dir=${root_dir}/dataset/sr_22k/wavlm \
+            --wav_dir=${root_dir}/dataset/sr/wav \
+            --ssl_dir=${root_dir}/dataset/sr/wavlm \
             --min=73 \
             --max=76 \
             --num_workers=20 & CUDA_VISIBLE_DEVICES=1 python3 preprocess_sr.py \
                 --sr=16000 \
                 --config=hifigan/config.json \
                 --in_dir=dataset/vctk-22k \
-                --wav_dir=${root_dir}/dataset/sr_22k/wav \
-                --ssl_dir=${root_dir}/dataset/sr_22k/wavlm \
+                --wav_dir=${root_dir}/dataset/sr/wav \
+                --ssl_dir=${root_dir}/dataset/sr/wavlm \
                 --min=77 \
                 --max=80 \
                 --num_workers=20 & CUDA_VISIBLE_DEVICES=1 python3 preprocess_sr.py \
                     --sr=16000 \
                     --config=hifigan/config.json \
                     --in_dir=dataset/vctk-22k \
-                    --wav_dir=${root_dir}/dataset/sr_22k/wav \
-                    --ssl_dir=${root_dir}/dataset/sr_22k/wavlm \
+                    --wav_dir=${root_dir}/dataset/sr/wav \
+                    --ssl_dir=${root_dir}/dataset/sr/wavlm \
                     --min=81 \
                     --max=84 \
                     --num_workers=20 & CUDA_VISIBLE_DEVICES=2 python3 preprocess_sr.py \
                         --sr=16000 \
                         --config=hifigan/config.json \
                         --in_dir=dataset/vctk-22k \
-                        --wav_dir=${root_dir}/dataset/sr_22k/wav \
-                        --ssl_dir=${root_dir}/dataset/sr_22k/wavlm \
+                        --wav_dir=${root_dir}/dataset/sr/wav \
+                        --ssl_dir=${root_dir}/dataset/sr/wavlm \
                         --min=85 \
                         --max=88 \
                         --num_workers=20 & CUDA_VISIBLE_DEVICES=2 python3 preprocess_sr.py \
                             --sr=16000 \
                             --config=hifigan/config.json \
                             --in_dir=dataset/vctk-22k \
-                            --wav_dir=${root_dir}/dataset/sr_22k/wav \
-                            --ssl_dir=${root_dir}/dataset/sr_22k/wavlm \
+                            --wav_dir=${root_dir}/dataset/sr/wav \
+                            --ssl_dir=${root_dir}/dataset/sr/wavlm \
                             --min=89 \
                             --max=92 \
                             --num_workers=20
 fi
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-   ln -snf ${root_dir}/dataset/sr_22k/ ./dataset/
+   ln -snf ${root_dir}/dataset/sr/ ./dataset/
 fi
