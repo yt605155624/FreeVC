@@ -1,13 +1,9 @@
 import argparse
-import glob 
+import glob
 import os
-import sys
-from concurrent.futures import ProcessPoolExecutor 
+from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from multiprocessing import cpu_count
-from os.path import basename
-from os.path import join
-from os.path import split
 from pathlib import Path
 
 import numpy as np
@@ -21,11 +17,13 @@ def build_from_path(in_dir, out_dir, spk_encoder, num_workers=1):
     executor = ProcessPoolExecutor(max_workers=num_workers)
     futures = []
     wavfile_paths = glob.glob(os.path.join(in_dir, '*.wav'))
-    wavfile_paths= sorted(wavfile_paths)
+    wavfile_paths = sorted(wavfile_paths)
     for wav_path in wavfile_paths:
-        futures.append(executor.submit(
-            partial(_compute_spkEmbed, out_dir, wav_path, spk_encoder)))
+        futures.append(
+            executor.submit(
+                partial(_compute_spkEmbed, out_dir, wav_path, spk_encoder)))
     return [future.result() for future in tqdm(futures)]
+
 
 def _compute_spkEmbed(out_dir, wav_path, spk_encoder):
     utt_id = os.path.basename(wav_path).rstrip(".wav")
@@ -36,32 +34,36 @@ def _compute_spkEmbed(out_dir, wav_path, spk_encoder):
     np.save(fname_save, embed, allow_pickle=False)
     return os.path.basename(fname_save)
 
+
 def preprocess(in_dir, out_dir_root, spk, spk_encoder, num_workers):
     out_dir = os.path.join(out_dir_root, spk)
     os.makedirs(out_dir, exist_ok=True)
     metadata = build_from_path(in_dir, out_dir, spk_encoder, num_workers)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--in_dir', type=str, 
-        default='dataset/vctk-16k/')
+    parser.add_argument('--in_dir', type=str, default='dataset/vctk-16k/')
     parser.add_argument('--num_workers', type=int, default=12)
-    parser.add_argument('--out_dir_root', type=str, 
-        default='dataset')
-    parser.add_argument('--spk_encoder_ckpt', type=str, \
+    parser.add_argument('--out_dir_root', type=str, default='dataset')
+    parser.add_argument(
+        '--spk_encoder_ckpt',
+        type=str,
         default='speaker_encoder/ckpt/pretrained_bak_5805000.pt')
 
     args = parser.parse_args()
-    
+
     # for multiprocessing
     torch.multiprocessing.set_start_method('spawn')
-    
+
     sub_folder_list = os.listdir(args.in_dir)
     sub_folder_list.sort()
-    
-    args.num_workers = args.num_workers if args.num_workers is not None else cpu_count()
+
+    args.num_workers = args.num_workers if args.num_workers is not None else cpu_count(
+    )
     print("Number of workers: ", args.num_workers)
-    ckpt_step = os.path.basename(args.spk_encoder_ckpt).split('.')[0].split('_')[-1]
+    ckpt_step = os.path.basename(
+        args.spk_encoder_ckpt).split('.')[0].split('_')[-1]
     spk_embed_out_dir = os.path.join(args.out_dir_root, "spk_emb")
     print("[INFO] spk_embed_out_dir: ", spk_embed_out_dir)
     os.makedirs(spk_embed_out_dir, exist_ok=True)
@@ -73,9 +75,9 @@ if __name__ == "__main__":
     for spk in sub_folder_list:
         print("Preprocessing {} ...".format(spk))
         in_dir = os.path.join(args.in_dir, spk)
-        if not os.path.isdir(in_dir): 
+        if not os.path.isdir(in_dir):
             continue
-        preprocess(in_dir, spk_embed_out_dir, spk, spk_encoder, args.num_workers)
-
+        preprocess(in_dir, spk_embed_out_dir, spk, spk_encoder,
+                   args.num_workers)
 
     print("DONE!")
