@@ -219,7 +219,7 @@ def get_hparams(init=True):
     parser.add_argument(
         '-m', '--model', type=str, required=True, help='Model name')
     parser.add_argument("--local_rank", default=-1, type=int)
-    parser.add_argument("--output-dir", type=str, help="output dir.")
+    parser.add_argument("--output-dir", default='exp/default', type=str, help="output dir.")
 
     args = parser.parse_args()
     output_dir = Path(args.output_dir)

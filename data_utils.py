@@ -48,6 +48,8 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
                 os.path.getsize(audiopath[0]) // (2 * self.hop_length))
         self.lengths = lengths
 
+    # 如何让 get_audio 更加鲁棒？
+
     def get_audio(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
         if sampling_rate != self.sampling_rate:
@@ -117,7 +119,14 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             return c, spec, audio_norm
 
     def __getitem__(self, index):
-        return self.get_audio(self.audiopaths[index][0])
+        try:
+            tmp = self.get_audio(self.audiopaths[index][0])
+            return tmp
+        except Exception:
+            if self.use_spk:
+                return None, None, None, None
+            else:
+                return None, None, None
 
     def __len__(self):
         return len(self.audiopaths)
@@ -139,6 +148,13 @@ class TextAudioSpeakerCollate():
         batch: [text_normalized, spec_normalized, wav_normalized, sid]
         """
         # Right zero-pad all one-hot text sequences to max input length
+        len_batch1 = len(batch)
+
+        # 过滤掉 batch 中含 None 的
+        new_batch = [item for item in batch if None not in item]
+        batch = new_batch
+        len_batch2 = len(batch)
+
         _, ids_sorted_decreasing = torch.sort(
             torch.LongTensor([x[0].size(1) for x in batch]),
             dim=0,

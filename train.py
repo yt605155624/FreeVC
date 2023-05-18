@@ -1,9 +1,11 @@
 import logging
+
 logger = logging.getLogger('matplotlib')
 logger.setLevel(logging.INFO)
 
 import os
 import torch
+import time
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -34,7 +36,8 @@ from mel_processing import spec_to_mel_torch
 torch.backends.cudnn.benchmark = True
 global_step = 0
 
-#os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'
+
+# os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'
 
 
 def main():
@@ -46,7 +49,7 @@ def main():
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = hps.train.port
 
-    mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps, ))
+    mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
 
 
 def run(rank, n_gpus, hps):
@@ -58,10 +61,9 @@ def run(rank, n_gpus, hps):
         writer = SummaryWriter(log_dir=hps.model_dir)
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
 
-    dist.init_process_group(
-        backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
+    dist.init_process_group(backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
     torch.manual_seed(hps.train.seed)
-    torch.cuda.set_device(rank)
+    # torch.cuda.set_device(rank)
 
     train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps)
     train_sampler = DistributedBucketSampler(
@@ -103,7 +105,7 @@ def run(rank, n_gpus, hps):
         hps.train.learning_rate,
         betas=hps.train.betas,
         eps=hps.train.eps)
-    net_g = DDP(net_g, device_ids=[rank])  #, find_unused_parameters=True)
+    net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
     net_d = DDP(net_d, device_ids=[rank])
 
     try:
@@ -137,11 +139,12 @@ def run(rank, n_gpus, hps):
                                scaler, [train_loader, None], None, None)
         scheduler_g.step()
         scheduler_d.step()
+    # 释放进程组资源
+    dist.destroy_process_group()
 
 
 def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                        loaders, logger, writers):
-
     net_g, net_d = nets
     optim_g, optim_d = optims
     scheduler_g, scheduler_d = schedulers
@@ -155,15 +158,21 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
     net_g.train()
     net_d.train()
     for batch_idx, items in enumerate(train_loader):
+        # 本条数据有问题, 跳过
+        if None in items:
+            logger.info("skip one batch of data because of data error!")
+            global_step += 1
+            continue
         if hps.model.use_spk:
             c, spec, y, spk = items
             g = spk.cuda(rank, non_blocking=True)
         else:
             c, spec, y = items
             g = None
+        
         spec, y = spec.cuda(
             rank, non_blocking=True), y.cuda(
-                rank, non_blocking=True)
+            rank, non_blocking=True)
         c = c.cuda(rank, non_blocking=True)
         mel = spec_to_mel_torch(spec, hps.data.filter_length,
                                 hps.data.n_mel_channels, hps.data.sampling_rate,
@@ -172,7 +181,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
         with autocast(enabled=hps.train.fp16_run):
             y_hat, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q,
                                        logs_q) = net_g(
-                                           c, spec, g=g, mel=mel)
+                c, spec, g=g, mel=mel)
 
             y_mel = commons.slice_segments(
                 mel, ids_slice, hps.train.segment_size // hps.data.hop_length)
@@ -217,8 +226,9 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
             if global_step % hps.train.log_interval == 0:
                 lr = optim_g.param_groups[0]['lr']
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
+                current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
                 logger.info('Train Epoch: {} [{:.0f}%]'.format(
-                    epoch, 100. * batch_idx / len(train_loader)))
+                    epoch, 100. * batch_idx / len(train_loader)) + " " + str(current_time))
                 logger.info([x.item() for x in losses] + [global_step, lr])
 
                 scalar_dict = {
@@ -248,20 +258,21 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                 })
                 image_dict = {
                     "slice/mel_org":
-                    utils.plot_spectrogram_to_numpy(
-                        y_mel[0].data.cpu().numpy()),
+                        utils.plot_spectrogram_to_numpy(
+                            y_mel[0].data.cpu().numpy()),
                     "slice/mel_gen":
-                    utils.plot_spectrogram_to_numpy(
-                        y_hat_mel[0].data.cpu().numpy()),
+                        utils.plot_spectrogram_to_numpy(
+                            y_hat_mel[0].data.cpu().numpy()),
                     "all/mel":
-                    utils.plot_spectrogram_to_numpy(mel[0].data.cpu().numpy()),
+                        utils.plot_spectrogram_to_numpy(mel[0].data.cpu().numpy()),
                 }
                 utils.summarize(
                     writer=writer,
                     global_step=global_step,
                     images=image_dict,
                     scalars=scalar_dict)
-
+            # print("global_step:",global_step)
+            # print("hps.train.eval_interval:",hps.train.eval_interval)
             if global_step % hps.train.eval_interval == 0:
                 evaluate(hps, net_g, eval_loader, writer_eval)
                 utils.save_checkpoint(
@@ -270,6 +281,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                 utils.save_checkpoint(
                     net_d, optim_d, hps.train.learning_rate, epoch,
                     os.path.join(hps.model_dir, "D_{}.pth".format(global_step)))
+        
         global_step += 1
 
     if rank == 0:
