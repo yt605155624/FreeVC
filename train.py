@@ -15,13 +15,21 @@ from torch.cuda.amp import GradScaler
 
 import commons
 import utils
-from data_utils import (TextAudioSpeakerLoader, TextAudioSpeakerCollate,
-                        DistributedBucketSampler)
-from models import (
-    SynthesizerTrn,
-    MultiPeriodDiscriminator, )
-from losses import (generator_loss, discriminator_loss, feature_loss, kl_loss)
-from mel_processing import mel_spectrogram_torch, spec_to_mel_torch
+from data_utils import TextAudioSpeakerLoader
+from data_utils import TextAudioSpeakerCollate
+from data_utils import DistributedBucketSampler
+from models import SynthesizerTrn
+
+from models import MultiPeriodDiscriminator
+from losses import generator_loss
+from losses import discriminator_loss
+
+from losses import feature_loss
+
+from losses import kl_loss
+
+from mel_processing import mel_spectrogram_torch
+from mel_processing import spec_to_mel_torch
 
 torch.backends.cudnn.benchmark = True
 global_step = 0
@@ -106,7 +114,7 @@ def run(rank, n_gpus, hps):
             utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d,
             optim_d)
         global_step = (epoch_str - 1) * len(train_loader)
-    except:
+    except Exception:
         epoch_str = 1
         global_step = 0
 

@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import hifigan
 import numpy as np
@@ -85,7 +86,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, strict=False):
     for k, v in state_dict.items():
         try:
             new_state_dict[k] = saved_state_dict[k]
-        except:
+        except Exception:
             logger.info("%s is not in the checkpoint" % k)
             new_state_dict[k] = v
     if hasattr(model, 'module'):
@@ -218,9 +219,12 @@ def get_hparams(init=True):
     parser.add_argument(
         '-m', '--model', type=str, required=True, help='Model name')
     parser.add_argument("--local_rank", default=-1, type=int)
+    parser.add_argument("--output-dir", type=str, help="output dir.")
 
     args = parser.parse_args()
-    model_dir = os.path.join("./logs", args.model)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    model_dir = os.path.join(output_dir, args.model)
 
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
