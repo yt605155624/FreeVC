@@ -7,16 +7,10 @@ root_dir='/nfs-speech-tx/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/Free
 
 # train freevc
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
-   # 单卡
-   CUDA_VISIBLE_DEVICES=0 python3 train.py \
-            --output-dir=${train_output_path} \
-            --config=configs/freevc.json \
-            --model=freevc
-   # 多卡
-#    python3 train.py \
-#            --output-dir=${train_output_path} \
-#            --config=configs/freevc.json \
-#            --model=freevc
+   python3 train.py \
+           --output-dir=${root_dir}/${train_output_path} \
+           --config=configs/freevc.json \
+           --model=freevc
 fi
 
 # train freevc-s
