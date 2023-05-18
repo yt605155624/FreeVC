@@ -217,6 +217,7 @@ def get_hparams(init=True):
         help='JSON file for configuration')
     parser.add_argument(
         '-m', '--model', type=str, required=True, help='Model name')
+    parser.add_argument("--local_rank", default=-1, type=int)
 
     args = parser.parse_args()
     model_dir = os.path.join("./logs", args.model)
