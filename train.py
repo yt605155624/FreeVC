@@ -40,8 +40,9 @@ from mel_processing import spec_to_mel_torch
 """
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.benchmark = True
 global_step = 0
+global_total_epoch = 0
 
 
 def main():
@@ -58,6 +59,7 @@ def main():
 
 def run(rank, n_gpus, hps):
     global global_step
+    global global_total_epoch
     if rank == 0:
         logger = utils.get_logger(hps.model_dir)
         logger.info(hps)
@@ -112,7 +114,6 @@ def run(rank, n_gpus, hps):
         eps=hps.train.eps)
     net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
     net_d = DDP(net_d, device_ids=[rank])
-
     try:
         _, _, _, epoch_str, iter_str = utils.load_checkpoint(
             utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g,
@@ -131,6 +132,8 @@ def run(rank, n_gpus, hps):
         optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
     scaler = GradScaler(enabled=hps.train.fp16_run)
+
+    global_total_epoch = hps.train.epochs
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
         if rank == 0:
@@ -234,8 +237,9 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                 current_time = time.strftime('%Y-%m-%d %H:%M:%S',
                                              time.localtime(time.time()))
                 logger.info('Train Epoch: {} [{:.0f}%]'.format(
-                    epoch, 100. * batch_idx / len(train_loader)) + " " + str(
-                        current_time))
+                    epoch, 100. * batch_idx / len(train_loader)) + \
+                    " / Total Epoch: "+ str(global_total_epoch)+ \
+                    " " + str(current_time))
                 logger.info([x.item() for x in losses] + [global_step, lr])
 
                 scalar_dict = {
@@ -278,8 +282,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                     global_step=global_step,
                     images=image_dict,
                     scalars=scalar_dict)
-            # print("global_step:",global_step)
-            # print("hps.train.eval_interval:",hps.train.eval_interval)
             if global_step % hps.train.eval_interval == 0:
                 evaluate(hps, net_g, eval_loader, writer_eval)
                 utils.save_checkpoint(
@@ -300,10 +302,10 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                         hps.model_dir, "D_{}.pth".format(global_step)))
 
         global_step += 1
-        if rank == 0:
-            print("global_step:", global_step, "current_time: ",
-                  time.strftime('%Y-%m-%d %H:%M:%S',
-                                time.localtime(time.time())))
+        # if rank == 0:
+        #     print("global_step:", global_step, "current_time: ",
+        #           time.strftime('%Y-%m-%d %H:%M:%S',
+        #                         time.localtime(time.time())))
 
     if rank == 0:
         logger.info('====> Epoch: {}'.format(epoch))
