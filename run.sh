@@ -6,6 +6,7 @@ gpus=0,1
 stage=0
 stop_stage=100
 train_output_path=exp/default
+port=8001
 
 # with the following command, you can choose the stage range you want to run
 # such as `./run.sh --stage 0 --stop-stage 0`
@@ -19,7 +20,7 @@ fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
    
-    CUDA_VISIBLE_DEVICES=${gpus} ./local/train.sh ${train_output_path} || exit -1
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/train.sh ${train_output_path} ${port}|| exit -1
 fi
 # 可以成功运行
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then

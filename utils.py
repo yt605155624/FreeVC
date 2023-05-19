@@ -70,6 +70,12 @@ def stretch(mel, width):  # 0.5-2
 def load_checkpoint(checkpoint_path, model, optimizer=None, strict=False):
     assert os.path.isfile(checkpoint_path)
     checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
+    try:
+        epoch = checkpoint_dict['epoch']
+    except Exception:
+        # 作者提供模型没有这个 key
+        print("No epoch in this ckpt, we will set it to 1")
+        epoch = 1
     iteration = checkpoint_dict['iteration']
     learning_rate = checkpoint_dict['learning_rate']
     if optimizer is not None:
@@ -93,15 +99,17 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, strict=False):
         model.module.load_state_dict(new_state_dict)
     else:
         model.load_state_dict(new_state_dict)
-    logger.info("Loaded checkpoint '{}' (iteration {})".format(checkpoint_path,
-                                                               iteration))
-    return model, optimizer, learning_rate, iteration
+    logger.info("Loaded checkpoint '{}' (epoch {} iteration {})".format(
+        checkpoint_path, epoch, iteration))
+
+    return model, optimizer, learning_rate, epoch, iteration
 
 
-def save_checkpoint(model, optimizer, learning_rate, iteration,
+def save_checkpoint(model, optimizer, learning_rate, iteration, epoch,
                     checkpoint_path):
-    logger.info("Saving model and optimizer state at iteration {} to {}".format(
-        iteration, checkpoint_path))
+    logger.info(
+        "Saving model and optimizer state at epoch {} iteration {} to {}".
+        format(epoch, iteration, checkpoint_path))
     if hasattr(model, 'module'):
         state_dict = model.module.state_dict()
     else:
@@ -109,6 +117,7 @@ def save_checkpoint(model, optimizer, learning_rate, iteration,
     torch.save({
         'model': state_dict,
         'iteration': iteration,
+        'epoch': epoch,
         'optimizer': optimizer.state_dict(),
         'learning_rate': learning_rate
     }, checkpoint_path)
@@ -219,7 +228,9 @@ def get_hparams(init=True):
     parser.add_argument(
         '-m', '--model', type=str, required=True, help='Model name')
     parser.add_argument("--local_rank", default=-1, type=int)
-    parser.add_argument("--output-dir", default='exp/default', type=str, help="output dir.")
+    parser.add_argument(
+        "--output-dir", default='exp/default', type=str, help="output dir.")
+    parser.add_argument("--port", default='8001', type=str, help="port")
 
     args = parser.parse_args()
     output_dir = Path(args.output_dir)
@@ -243,6 +254,7 @@ def get_hparams(init=True):
 
     hparams = HParams(**config)
     hparams.model_dir = model_dir
+    hparams.train.port = args.port
     return hparams
 
 

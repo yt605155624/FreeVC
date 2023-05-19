@@ -33,11 +33,15 @@ from losses import kl_loss
 from mel_processing import mel_spectrogram_torch
 from mel_processing import spec_to_mel_torch
 
-torch.backends.cudnn.benchmark = True
+# 设置为 False 后会使得显存增高导致 OOM, bs = 256 相对有点大
+"""
+如果网络的输入数据维度或类型上变化不大，设置  torch.backends.cudnn.benchmark = true  可以增加运行效率；
+如果网络的输入数据在每次 iteration 都变化的话，会导致 cnDNN 每次都会去寻找一遍最优配置，这样反而会降低运行效率。
+"""
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.benchmark = False
 global_step = 0
-
-
-# os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'
 
 
 def main():
@@ -49,7 +53,7 @@ def main():
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = hps.train.port
 
-    mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
+    mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps, ))
 
 
 def run(rank, n_gpus, hps):
@@ -61,7 +65,8 @@ def run(rank, n_gpus, hps):
         writer = SummaryWriter(log_dir=hps.model_dir)
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
 
-    dist.init_process_group(backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
+    dist.init_process_group(
+        backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
     torch.manual_seed(hps.train.seed)
     # torch.cuda.set_device(rank)
 
@@ -109,13 +114,13 @@ def run(rank, n_gpus, hps):
     net_d = DDP(net_d, device_ids=[rank])
 
     try:
-        _, _, _, epoch_str = utils.load_checkpoint(
+        _, _, _, epoch_str, iter_str = utils.load_checkpoint(
             utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g,
             optim_g)
-        _, _, _, epoch_str = utils.load_checkpoint(
+        _, _, _, epoch_str, iter_str = utils.load_checkpoint(
             utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d,
             optim_d)
-        global_step = (epoch_str - 1) * len(train_loader)
+        global_step = iter_str
     except Exception:
         epoch_str = 1
         global_step = 0
@@ -169,10 +174,10 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
         else:
             c, spec, y = items
             g = None
-        
+
         spec, y = spec.cuda(
             rank, non_blocking=True), y.cuda(
-            rank, non_blocking=True)
+                rank, non_blocking=True)
         c = c.cuda(rank, non_blocking=True)
         mel = spec_to_mel_torch(spec, hps.data.filter_length,
                                 hps.data.n_mel_channels, hps.data.sampling_rate,
@@ -181,7 +186,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
         with autocast(enabled=hps.train.fp16_run):
             y_hat, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q,
                                        logs_q) = net_g(
-                c, spec, g=g, mel=mel)
+                                           c, spec, g=g, mel=mel)
 
             y_mel = commons.slice_segments(
                 mel, ids_slice, hps.train.segment_size // hps.data.hop_length)
@@ -226,9 +231,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
             if global_step % hps.train.log_interval == 0:
                 lr = optim_g.param_groups[0]['lr']
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
-                current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                current_time = time.strftime('%Y-%m-%d %H:%M:%S',
+                                             time.localtime(time.time()))
                 logger.info('Train Epoch: {} [{:.0f}%]'.format(
-                    epoch, 100. * batch_idx / len(train_loader)) + " " + str(current_time))
+                    epoch, 100. * batch_idx / len(train_loader)) + " " + str(
+                        current_time))
                 logger.info([x.item() for x in losses] + [global_step, lr])
 
                 scalar_dict = {
@@ -258,13 +265,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                 })
                 image_dict = {
                     "slice/mel_org":
-                        utils.plot_spectrogram_to_numpy(
-                            y_mel[0].data.cpu().numpy()),
+                    utils.plot_spectrogram_to_numpy(
+                        y_mel[0].data.cpu().numpy()),
                     "slice/mel_gen":
-                        utils.plot_spectrogram_to_numpy(
-                            y_hat_mel[0].data.cpu().numpy()),
+                    utils.plot_spectrogram_to_numpy(
+                        y_hat_mel[0].data.cpu().numpy()),
                     "all/mel":
-                        utils.plot_spectrogram_to_numpy(mel[0].data.cpu().numpy()),
+                    utils.plot_spectrogram_to_numpy(mel[0].data.cpu().numpy()),
                 }
                 utils.summarize(
                     writer=writer,
@@ -276,13 +283,27 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
             if global_step % hps.train.eval_interval == 0:
                 evaluate(hps, net_g, eval_loader, writer_eval)
                 utils.save_checkpoint(
-                    net_g, optim_g, hps.train.learning_rate, epoch,
-                    os.path.join(hps.model_dir, "G_{}.pth".format(global_step)))
+                    model=net_g,
+                    optimizer=optim_g,
+                    learning_rate=hps.train.learning_rate,
+                    iteration=global_step,
+                    epoch=epoch,
+                    checkpoint_path=os.path.join(
+                        hps.model_dir, "G_{}.pth".format(global_step)))
                 utils.save_checkpoint(
-                    net_d, optim_d, hps.train.learning_rate, epoch,
-                    os.path.join(hps.model_dir, "D_{}.pth".format(global_step)))
-        
+                    model=net_d,
+                    optimizer=optim_d,
+                    learning_rate=hps.train.learning_rate,
+                    iteration=global_step,
+                    epoch=epoch,
+                    checkpoint_path=os.path.join(
+                        hps.model_dir, "D_{}.pth".format(global_step)))
+
         global_step += 1
+        if rank == 0:
+            print("global_step:", global_step, "current_time: ",
+                  time.strftime('%Y-%m-%d %H:%M:%S',
+                                time.localtime(time.time())))
 
     if rank == 0:
         logger.info('====> Epoch: {}'.format(epoch))
