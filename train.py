@@ -2,6 +2,10 @@ import logging
 
 logger = logging.getLogger('matplotlib')
 logger.setLevel(logging.INFO)
+logger = logging.getLogger('torch.nn.parallel.distributed')
+logger.setLevel(logging.WARNING)
+logger = logging.getLogger('torch.distributed.distributed_c10d')
+logger.setLevel(logging.WARNING)
 
 import os
 import torch
