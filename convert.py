@@ -45,6 +45,7 @@ if __name__ == "__main__":
                            **hps.model).cuda()
     _ = net_g.eval()
     print("Loading checkpoint...")
+    print("args.ptfile:",args.ptfile)
     _ = utils.load_checkpoint(args.ptfile, net_g, None, True)
 
     print("Loading WavLM for content...")

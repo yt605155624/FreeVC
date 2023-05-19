@@ -303,15 +303,17 @@ def get_logger(model_dir, filename="train.log"):
     global logger
     logger = logging.getLogger(os.path.basename(model_dir))
     logger.setLevel(logging.DEBUG)
-
     formatter = logging.Formatter(
-        "%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s")
+        "%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s", datefmt='[%Y-%m-%d %H:%M:%S]')
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
-    h = logging.FileHandler(os.path.join(model_dir, filename))
-    h.setLevel(logging.DEBUG)
-    h.setFormatter(formatter)
-    logger.addHandler(h)
+    file_handler = logging.FileHandler(os.path.join(model_dir, filename))
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    # console_handler = logging.StreamHandler()
+    # console_handler.setFormatter(formatter)
+    # # 将处理器添加到日志记录器
+    # logger.addHandler(console_handler)
     return logger
 
 

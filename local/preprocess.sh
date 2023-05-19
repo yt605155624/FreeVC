@@ -1,10 +1,16 @@
 #!/bin/bash
-stage=0
-stop_stage=100
+stage=1
+stop_stage=1
+root_dir=$1
+# 增加新的数据集的时候，把 vctk 生成的 dataset mv 为 dataset_0、filelists_0
+# 新数据集 mv 为 dataset_1、filelists_1 
+# 生成 filelists_1 的时候需要注意下 DUMMY 路径，可以先把原始的 DUMMY rename 一下
+# 运行 stage1 把 新数据集的 16k/wav 也软链接到 DUMMY
+# concat filelists_0 和 filelists_1 到 filelists 或者重新执行 stage2 生成新的 DUMMY
+## 后者 vctk 原始的训练训练集会变
+# 新数据集也叫 vctk-16 只是用 dataset_num 区分
+dataset_num='0'
 
-sr_min=68
-sr_max=92
-root_dir='/nfs-speech-tx/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/FreeVC'
 
 # for VCTK only
 # 同时下采样到 16k 和 22.05k, 22.05k 用于 preprocess_sr, 因为 HiFiGAN 是 22.05k 的 
@@ -13,14 +19,17 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     python3 downsample.py \
         --in_dir=~/datasets/VCTK/wav48_silence_trimmed/ \
         --sr1=16000 \
-        --out_dir1=./dataset/vctk-16k \
+        --out_dir1=dataset_${dataset_num}/vctk-16k \ # vctk-16k 在 nfs 上速度会比较慢
         --sr2=22050 \
-        --out_dir2=./dataset/vctk-22k \
+        --out_dir2=${root_dir}/dataset_${dataset_num}/vctk-22k \
         --num-cpu=20
 fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
-    ln -s dataset/vctk-16k DUMMY
+    mkdir -p DUMMY
+    cd dataset_${dataset_num}/vctk-16k/
+    for file in *; do ln -s "$(pwd)/$file" ../../DUMMY; done
+    cd -
 fi
 
 # shuffle *.txt in ./filelists, ./filelists 中仅包含 VCTK, 如果加了新数据一定要跑这个 stage
@@ -41,8 +50,8 @@ fi
 # 结束之后有个段错误，之后看看
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     python3 preprocess_spk.py \
-        --in_dir=dataset/vctk-16k \
-        --out_dir_root=dataset \
+        --in_dir=dataset_${dataset_num}/vctk-16k \
+        --out_dir_root=${root_dir}/dataset_${dataset_num} \
         --num_workers=12
 fi
 
@@ -54,54 +63,68 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     CUDA_VISIBLE_DEVICES=0 python3 preprocess_sr.py \
         --sr=16000 \
         --config=hifigan/config.json \
-        --in_dir=dataset/vctk-22k \
-        --wav_dir=${root_dir}/dataset/sr/wav \
-        --ssl_dir=${root_dir}/dataset/sr/wavlm \
+        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
         --min=68 \
         --max=72 \
         --num_workers=20 & CUDA_VISIBLE_DEVICES=0 python3 preprocess_sr.py \
             --sr=16000 \
             --config=hifigan/config.json \
-            --in_dir=dataset/vctk-22k \
-            --wav_dir=${root_dir}/dataset/sr/wav \
-            --ssl_dir=${root_dir}/dataset/sr/wavlm \
+            --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+            --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+            --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
             --min=73 \
             --max=76 \
             --num_workers=20 & CUDA_VISIBLE_DEVICES=1 python3 preprocess_sr.py \
                 --sr=16000 \
                 --config=hifigan/config.json \
-                --in_dir=dataset/vctk-22k \
-                --wav_dir=${root_dir}/dataset/sr/wav \
-                --ssl_dir=${root_dir}/dataset/sr/wavlm \
+                --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+                --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+                --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
                 --min=77 \
                 --max=80 \
                 --num_workers=20 & CUDA_VISIBLE_DEVICES=1 python3 preprocess_sr.py \
                     --sr=16000 \
                     --config=hifigan/config.json \
-                    --in_dir=dataset/vctk-22k \
-                    --wav_dir=${root_dir}/dataset/sr/wav \
-                    --ssl_dir=${root_dir}/dataset/sr/wavlm \
+                    --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+                    --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+                    --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
                     --min=81 \
                     --max=84 \
                     --num_workers=20 & CUDA_VISIBLE_DEVICES=2 python3 preprocess_sr.py \
                         --sr=16000 \
                         --config=hifigan/config.json \
-                        --in_dir=dataset/vctk-22k \
-                        --wav_dir=${root_dir}/dataset/sr/wav \
-                        --ssl_dir=${root_dir}/dataset/sr/wavlm \
+                        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+                        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+                        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
                         --min=85 \
                         --max=88 \
                         --num_workers=20 & CUDA_VISIBLE_DEVICES=2 python3 preprocess_sr.py \
                             --sr=16000 \
                             --config=hifigan/config.json \
-                            --in_dir=dataset/vctk-22k \
-                            --wav_dir=${root_dir}/dataset/sr/wav \
-                            --ssl_dir=${root_dir}/dataset/sr/wavlm \
+                            --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+                            --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+                            --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
                             --min=89 \
                             --max=92 \
                             --num_workers=20
 fi
 
+# ${root_dir}/dataset/ 下的所有东西全部软链接到当前路径
+# data_utils.py 里面是替换 lifelists 里 DUMMY 为 dataset/*
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-   ln -snf ${root_dir}/dataset/sr/ ./dataset/
+    # 以 speaker 目录为单位操作
+    # 真正训练时候只需要这两个
+    mkdir -p dataset/spk_emb
+    ln -snf ${root_dir}/dataset_${dataset_num}/spk_emb/* dataset/spk_emb
+    mkdir -p dataset/sr/wavlm
+    ln -snf ${root_dir}/dataset_${dataset_num}/sr/wavlm/* dataset/sr/wavlm
+    # mkdir -p dataset/sr/wav
+    # ln -snf ${root_dir}/dataset_${dataset_num}/sr/wav/* dataset/sr/wav
+    # mkdir -p dataset/vctk-16k
+    # ln -snf ${root_dir}/dataset_${dataset_num}/vctk-16k/* dataset/vctk-16k
+    # mkdir -p dataset/vctk-22k
+    # ln -snf ${root_dir}/dataset_${dataset_num}/vctk-22k/* dataset/vctk-22k
+
 fi

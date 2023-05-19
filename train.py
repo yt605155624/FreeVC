@@ -59,6 +59,7 @@ def main():
     os.environ['MASTER_PORT'] = hps.train.port
 
     mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps, ))
+    # run(0,1,hps)
 
 
 def run(rank, n_gpus, hps):
@@ -238,12 +239,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
             if global_step % hps.train.log_interval == 0:
                 lr = optim_g.param_groups[0]['lr']
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
-                current_time = time.strftime('%Y-%m-%d %H:%M:%S',
-                                             time.localtime(time.time()))
+                # current_time = time.strftime('%Y-%m-%d %H:%M:%S',
+                #                              time.localtime(time.time()))
                 logger.info('Train Epoch: {} [{:.0f}%]'.format(
                     epoch, 100. * batch_idx / len(train_loader)) + \
-                    " / Total Epoch: "+ str(global_total_epoch)+ \
-                    " " + str(current_time))
+                    " / Total Epoch: "+ str(global_total_epoch))
                 logger.info([x.item() for x in losses] + [global_step, lr])
 
                 scalar_dict = {
