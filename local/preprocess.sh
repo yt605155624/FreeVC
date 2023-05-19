@@ -1,6 +1,6 @@
 #!/bin/bash
-stage=1
-stop_stage=1
+stage=5
+stop_stage=5
 root_dir=$1
 # 增加新的数据集的时候，把 vctk 生成的 dataset mv 为 dataset_0、filelists_0
 # 新数据集 mv 为 dataset_1、filelists_1 
@@ -28,10 +28,7 @@ fi
 # !!!! vctk-16k 在 nfs 上速度会比较慢
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     mkdir -p DUMMY
-    exp_dir=$(pwd)
-    cd dataset_${dataset_num}/vctk-16k/
-    for file in *; do ln -s "$(pwd)/$file" ${exp_dir}/DUMMY; done
-    cd -
+    ln -snf $(pwd)/dataset_${dataset_num}/vctk-16k/* DUMMY
 fi
 
 # shuffle *.txt in ./filelists, ./filelists 中仅包含 VCTK, 如果加了新数据一定要跑这个 stage
@@ -53,7 +50,7 @@ fi
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     python3 preprocess_spk.py \
         --in_dir=dataset_${dataset_num}/vctk-16k \
-        --out_dir_root=${root_dir}/dataset_${dataset_num} \
+        --out_dir_root=dataset_${dataset_num} \
         --num_workers=12
 fi
 
@@ -114,8 +111,9 @@ fi
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     # 以 speaker 目录为单位操作
     # 真正训练时候只需要这两个
+    # !!!! spk_emb 在 nfs 上速度会比较慢
     mkdir -p dataset/spk_emb
-    ln -snf ${root_dir}/dataset_${dataset_num}/spk_emb/* dataset/spk_emb
+    ln -snf $(pwd)/dataset_${dataset_num}/spk_emb/* dataset/spk_emb
     mkdir -p dataset/sr/wavlm
     ln -snf ${root_dir}/dataset_${dataset_num}/sr/wavlm/* dataset/sr/wavlm
     # mkdir -p dataset/sr/wav
