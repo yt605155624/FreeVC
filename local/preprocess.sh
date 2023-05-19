@@ -19,16 +19,18 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     python3 downsample.py \
         --in_dir=~/datasets/VCTK/wav48_silence_trimmed/ \
         --sr1=16000 \
-        --out_dir1=dataset_${dataset_num}/vctk-16k \ # vctk-16k 在 nfs 上速度会比较慢
+        --out_dir1=dataset_${dataset_num}/vctk-16k \ # !!!! vctk-16k 在 nfs 上速度会比较慢
         --sr2=22050 \
         --out_dir2=${root_dir}/dataset_${dataset_num}/vctk-22k \
         --num-cpu=20
 fi
 
+# !!!! vctk-16k 在 nfs 上速度会比较慢
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     mkdir -p DUMMY
+    exp_dir=$(pwd)
     cd dataset_${dataset_num}/vctk-16k/
-    for file in *; do ln -s "$(pwd)/$file" ../../DUMMY; done
+    for file in *; do ln -s "$(pwd)/$file" ${exp_dir}/DUMMY; done
     cd -
 fi
 
@@ -54,10 +56,6 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         --out_dir_root=${root_dir}/dataset_${dataset_num} \
         --num_workers=12
 fi
-
-
-# 看下  stage 4 和 stage 5 的区别
-# 在不同卡上同时执行多个
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     CUDA_VISIBLE_DEVICES=0 python3 preprocess_sr.py \
