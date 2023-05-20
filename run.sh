@@ -8,7 +8,7 @@ stop_stage=100
 train_output_path=exp/default
 port=8001
 # dir to set part/all of dump dataset and experiment result
-root_dir='/nfs-speech-tx/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/FreeVC'
+root_dir='/nfs-speech-cpfs/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/FreeVC'
 ptfile_name='G_12500.pth'
 
 # with the following command, you can choose the stage range you want to run
