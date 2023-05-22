@@ -9,7 +9,6 @@ logger.setLevel(logging.WARNING)
 
 import os
 import torch
-import time
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -98,7 +97,7 @@ def run(rank, n_gpus, hps):
             eval_dataset,
             num_workers=0,
             shuffle=True,
-            batch_size=hps.train.batch_size,
+            batch_size=hps.train.eval_batch_size,
             pin_memory=False,
             drop_last=False,
             collate_fn=collate_fn)
@@ -142,14 +141,29 @@ def run(rank, n_gpus, hps):
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
         if rank == 0:
-            train_and_evaluate(rank, epoch, hps, [net_g, net_d],
-                               [optim_g, optim_d], [scheduler_g, scheduler_d],
-                               scaler, [train_loader, eval_loader], logger,
-                               [writer, writer_eval])
+            train_and_evaluate(
+                rank=rank,
+                epoch=epoch,
+                hps=hps,
+                nets=[net_g, net_d],
+                optims=[optim_g, optim_d],
+                schedulers=[scheduler_g, scheduler_d],
+                scaler=scaler,
+                loaders=[train_loader, eval_loader],
+                logger=logger,
+                writers=[writer, writer_eval])
         else:
-            train_and_evaluate(rank, epoch, hps, [net_g, net_d],
-                               [optim_g, optim_d], [scheduler_g, scheduler_d],
-                               scaler, [train_loader, None], None, None)
+            train_and_evaluate(
+                rank=rank,
+                epoch=epoch,
+                hps=hps,
+                nets=[net_g, net_d],
+                optims=[optim_g, optim_d],
+                schedulers=[scheduler_g, scheduler_d],
+                scaler=scaler,
+                loaders=[train_loader, None],
+                logger=None,
+                writers=None)
         scheduler_g.step()
         scheduler_d.step()
     # 释放进程组资源
@@ -222,6 +236,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
             with autocast(enabled=False):
+                # 这个 l1 loss 是不是错了？ 应该用 spec 计算？
+                # -> 没错， paddlespeech 里面是 speech 转成 mel 再计算
                 loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
                 loss_kl = kl_loss(z_p, logs_q, m_p, logs_p,
                                   z_mask) * hps.train.c_kl
@@ -242,8 +258,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                 # current_time = time.strftime('%Y-%m-%d %H:%M:%S',
                 #                              time.localtime(time.time()))
                 logger.info('Train Epoch: {} [{:.0f}%]'.format(
-                    epoch, 100. * batch_idx / len(train_loader)) + \
-                    " / Total Epoch: "+ str(global_total_epoch))
+                    epoch, 100. * batch_idx / len(train_loader)) +
+                            " / Total Epoch: " + str(global_total_epoch))
                 logger.info([x.item() for x in losses] + [global_step, lr])
 
                 scalar_dict = {
@@ -287,7 +303,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                     images=image_dict,
                     scalars=scalar_dict)
             if global_step % hps.train.eval_interval == 0:
-                evaluate(hps, net_g, eval_loader, writer_eval)
+                evaluate(
+                    hps=hps,
+                    net_g=net_g,
+                    net_d=net_d,
+                    eval_loader=eval_loader,
+                    writer_eval=writer_eval,
+                    logger=logger)
                 utils.save_checkpoint(
                     model=net_g,
                     optimizer=optim_g,
@@ -315,29 +337,88 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
         logger.info('====> Epoch: {}'.format(epoch))
 
 
-def evaluate(hps, generator, eval_loader, writer_eval):
-    generator.eval()
+def evaluate(hps, net_g, net_d, eval_loader, writer_eval, logger):
+    net_g.eval()
+    net_d.eval()
     with torch.no_grad():
         for batch_idx, items in enumerate(eval_loader):
             if hps.model.use_spk:
                 c, spec, y, spk = items
-                g = spk[:1].cuda(0)
+                g = spk.cuda(0)
             else:
                 c, spec, y = items
                 g = None
-            spec, y = spec[:1].cuda(0), y[:1].cuda(0)
-            c = c[:1].cuda(0)
             break
+
+        c, spec, y = c.cuda(0), spec.cuda(0), y.cuda(0)
         mel = spec_to_mel_torch(spec, hps.data.filter_length,
                                 hps.data.n_mel_channels, hps.data.sampling_rate,
                                 hps.data.mel_fmin, hps.data.mel_fmax)
-        y_hat = generator.module.infer(c, g=g, mel=mel)
+        y_hat, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = net_g(
+            c, spec, g=g, mel=mel)
+        y_mel = commons.slice_segments(mel, ids_slice, hps.train.segment_size //
+                                       hps.data.hop_length)
+        y_hat_mel = mel_spectrogram_torch(
+            y_hat.squeeze(1), hps.data.filter_length, hps.data.n_mel_channels,
+            hps.data.sampling_rate, hps.data.hop_length, hps.data.win_length,
+            hps.data.mel_fmin, hps.data.mel_fmax)
+        y = commons.slice_segments(y, ids_slice * hps.data.hop_length,
+                                   hps.train.segment_size)  # slice
+        # Discriminator loss
+        y_d_hat_r, y_d_hat_g, _, _ = net_d(y, y_hat.detach())
+        with autocast(enabled=False):
+            loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
+                y_d_hat_r, y_d_hat_g)
+            loss_disc_all = loss_disc
+        # Gen loss
+        with autocast(enabled=hps.train.fp16_run):
+            # Generator
+            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
+            with autocast(enabled=False):
+                loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
+                loss_kl = kl_loss(z_p, logs_q, m_p, logs_p,
+                                  z_mask) * hps.train.c_kl
+                loss_fm = feature_loss(fmap_r, fmap_g)
+                loss_gen, losses_gen = generator_loss(y_d_hat_g)
+                loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
 
+        losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
+        logger.info("Eval: " + str([x.item() for x in losses]))
+        eval_dict = {
+            "loss/g/total": loss_gen_all,
+            "loss/d/total": loss_disc_all,
+        }
+        eval_dict.update({
+            "loss/g/fm": loss_fm,
+            "loss/g/mel": loss_mel,
+            "loss/g/kl": loss_kl
+        })
+
+        eval_dict.update(
+            {"loss/g/{}".format(i): v
+             for i, v in enumerate(losses_gen)})
+        eval_dict.update(
+            {"loss/d_r/{}".format(i): v
+             for i, v in enumerate(losses_disc_r)})
+        eval_dict.update(
+            {"loss/d_g/{}".format(i): v
+             for i, v in enumerate(losses_disc_g)})
+        # 注意这里用 infer 上面求 loss 用 forward
+        # 上面求 loss 的 gt mel 是 y_mel, 是经过 slice 的
+        # 这里的 y_hat 应该比上面的 y_hat 长
+        # 所以这里是和 mel 比较, 上面是和 y_mel 求 l1 loss
+        if hps.model.use_spk:
+            g = spk[:1].cuda(0)
+        # 取 batch 里面的第一条
+        c, spec, y = c[:1].cuda(0), spec[:1].cuda(0), y[:1].cuda(0)
+        # 这里不 slice 所以不需要考虑原始长度的 segment_size 的关系
+        y_hat = net_g.module.infer(c, g=g, mel=mel)
         y_hat_mel = mel_spectrogram_torch(
             y_hat.squeeze(1).float(), hps.data.filter_length,
             hps.data.n_mel_channels, hps.data.sampling_rate,
             hps.data.hop_length, hps.data.win_length, hps.data.mel_fmin,
             hps.data.mel_fmax)
+
     image_dict = {
         "gen/mel": utils.plot_spectrogram_to_numpy(y_hat_mel[0].cpu().numpy()),
         "gt/mel": utils.plot_spectrogram_to_numpy(mel[0].cpu().numpy())
@@ -345,11 +426,13 @@ def evaluate(hps, generator, eval_loader, writer_eval):
     audio_dict = {"gen/audio": y_hat[0], "gt/audio": y[0]}
     utils.summarize(
         writer=writer_eval,
+        scalars=eval_dict,
         global_step=global_step,
         images=image_dict,
         audios=audio_dict,
         audio_sampling_rate=hps.data.sampling_rate)
-    generator.train()
+    net_g.train()
+    net_d.train()
 
 
 if __name__ == "__main__":

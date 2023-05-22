@@ -406,7 +406,6 @@ class SynthesizerTrn(nn.Module):
         _, m_p, logs_p, _ = self.enc_p(c, c_lengths)
         z, m_q, logs_q, spec_mask = self.enc_q(spec, spec_lengths, g=g)
         z_p = self.flow(z, spec_mask, g=g)
-
         z_slice, ids_slice = commons.rand_slice_segments(z, spec_lengths,
                                                          self.segment_size)
         o = self.dec(z_slice, g=g)

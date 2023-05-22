@@ -199,7 +199,6 @@ class TextAudioSpeakerCollate():
         spec_seglen = spec_lengths[-1] if spec_lengths[
             -1] < self.hps.train.max_speclen + 1 else self.hps.train.max_speclen + 1
         wav_seglen = spec_seglen * self.hps.data.hop_length
-
         spec_padded, ids_slice = commons.rand_spec_segments(
             spec_padded, spec_lengths, spec_seglen)
         wav_padded = commons.slice_segments(

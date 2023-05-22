@@ -103,3 +103,6 @@ if __name__ == "__main__":
             results = []
             for ft in futures:
                 results.append(ft.result())
+    # print("args.in_dir:",args.in_dir)
+    # for filename in tqdm(filenames):
+    #     process(filename)

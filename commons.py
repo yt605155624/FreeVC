@@ -58,6 +58,10 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
     b, d, t = x.size()
     if x_lengths is None:
         x_lengths = t
+    # 处理 x_lengths < segment_size 的情况
+    if x_lengths[0] < segment_size:
+        ids_str = torch.zeros([b]).to(dtype=torch.long)
+        return x, ids_str
     ids_str_max = x_lengths - segment_size + 1
     ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(
         dtype=torch.long)
@@ -69,6 +73,9 @@ def rand_spec_segments(x, x_lengths=None, segment_size=4):
     b, d, t = x.size()
     if x_lengths is None:
         x_lengths = t
+    if x_lengths[0] < segment_size:
+        ids_str = torch.zeros([b]).to(dtype=torch.long)
+        return x, ids_str
     ids_str_max = x_lengths - segment_size
     ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(
         dtype=torch.long)
