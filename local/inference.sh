@@ -11,7 +11,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
         --hpfile=configs/freevc.json \
         --ptfile=${root_dir}/${train_output_path}/freevc/${ptfile_name} \
         --txtpath=convert.txt \
-        --outdir=${root_dir}/${train_output_path}/freevc//outputs
+        --outdir=${root_dir}/${train_output_path}/freevc/outputs
 fi
 
 # inference with FreeVC-s

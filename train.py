@@ -209,7 +209,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
             y_hat, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q,
                                        logs_q) = net_g(
                                            c, spec, g=g, mel=mel)
-
+            # 训练的时候再按照 config 的 segment_size 裁剪
             y_mel = commons.slice_segments(
                 mel, ids_slice, hps.train.segment_size // hps.data.hop_length)
             y_hat_mel = mel_spectrogram_torch(
@@ -310,6 +310,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler,
                     eval_loader=eval_loader,
                     writer_eval=writer_eval,
                     logger=logger)
+            if global_step % hps.train.save_interval == 0:
                 utils.save_checkpoint(
                     model=net_g,
                     optimizer=optim_g,
