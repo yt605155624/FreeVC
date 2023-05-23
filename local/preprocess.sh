@@ -15,11 +15,12 @@ dataset_num='0'
 # for VCTK only
 # 同时下采样到 16k 和 22.05k, 22.05k 用于 preprocess_sr, 因为 HiFiGAN 是 22.05k 的 
 # 但是 preprocess_sr 里面 load 的时候用了 hps.sampling_rate，所以这个操作是否一定需要？
+# !!!! vctk-16k 在 nfs 上速度会比较慢
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     python3 downsample.py \
         --in_dir=~/datasets/VCTK/wav48_silence_trimmed/ \
         --sr1=16000 \
-        --out_dir1=dataset_${dataset_num}/vctk-16k \ # !!!! vctk-16k 在 nfs 上速度会比较慢
+        --out_dir1=dataset_${dataset_num}/vctk-16k \
         --sr2=22050 \
         --out_dir2=${root_dir}/dataset_${dataset_num}/vctk-22k \
         --num-cpu=20
