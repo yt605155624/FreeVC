@@ -19,7 +19,8 @@
     "c_kl": 1.0,
     "use_sr": true,
     "max_speclen": 128,
-    "port": "8001"
+    "port": "8001",
+    "num_workers": 0
   },
   "data": {
     "training_files":"filelists/train.txt",

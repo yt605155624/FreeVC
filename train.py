@@ -56,7 +56,6 @@ def main():
     n_gpus = torch.cuda.device_count()
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = hps.train.port
-
     mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps, ))
     # run(0,1,hps)
 
@@ -86,7 +85,7 @@ def run(rank, n_gpus, hps):
     collate_fn = TextAudioSpeakerCollate(hps)
     train_loader = DataLoader(
         train_dataset,
-        num_workers=0,
+        num_workers=hps.train.num_workers,
         shuffle=False,
         pin_memory=True,
         collate_fn=collate_fn,
@@ -95,7 +94,7 @@ def run(rank, n_gpus, hps):
         eval_dataset = TextAudioSpeakerLoader(hps.data.validation_files, hps)
         eval_loader = DataLoader(
             eval_dataset,
-            num_workers=0,
+            num_workers=hps.train.num_workers,
             shuffle=True,
             batch_size=hps.train.eval_batch_size,
             pin_memory=False,
