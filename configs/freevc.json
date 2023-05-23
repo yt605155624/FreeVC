@@ -20,7 +20,7 @@
     "use_sr": true,
     "max_speclen": 128,
     "port": "8001",
-    "num_workers": 0
+    "num_workers": 1
   },
   "data": {
     "training_files":"filelists/train.txt",
