@@ -121,6 +121,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     ln -snf $(pwd)/dataset_${dataset_num}/spk_emb/* dataset/spk_emb
     mkdir -p dataset/sr/wavlm
     ln -snf ${root_dir}/dataset_${dataset_num}/sr/wavlm/* dataset/sr/wavlm
+    # ln -snf $(pwd)/filelists_1 $(pwd)/filelists
     # mkdir -p dataset/sr/wav
     # ln -snf ${root_dir}/dataset_${dataset_num}/sr/wav/* dataset/sr/wav
     # mkdir -p dataset/vctk-16k

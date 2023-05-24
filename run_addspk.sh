@@ -11,7 +11,7 @@ port=8001
 # dir to set part/all of dump dataset and experiment result
 root_dir='/nfs-speech-cpfs/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_addspk/FreeVC'
 ptfile_name='G_12500.pth'
-config_path=configs/freevc.json
+config_path=configs/freevc_addspk.json
 model=freevc
 
 # with the following command, you can choose the stage range you want to run
