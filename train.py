@@ -74,6 +74,7 @@ def run(rank, n_gpus, hps):
         backend='nccl', init_method='env://', world_size=n_gpus, rank=rank)
     torch.manual_seed(hps.train.seed)
     # torch.cuda.set_device(rank)
+    persistent_workers = True if hps.train.num_workers > 0 else False
 
     train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps)
     train_sampler = DistributedBucketSampler(
@@ -89,7 +90,8 @@ def run(rank, n_gpus, hps):
         shuffle=False,
         pin_memory=True,
         collate_fn=collate_fn,
-        batch_sampler=train_sampler)
+        batch_sampler=train_sampler,
+        persistent_workers=persistent_workers)
     if rank == 0:
         eval_dataset = TextAudioSpeakerLoader(hps.data.validation_files, hps)
         eval_loader = DataLoader(
@@ -99,7 +101,8 @@ def run(rank, n_gpus, hps):
             batch_size=hps.train.eval_batch_size,
             pin_memory=False,
             drop_last=False,
-            collate_fn=collate_fn)
+            collate_fn=collate_fn,
+            persistent_workers=persistent_workers)
 
     net_g = SynthesizerTrn(hps.data.filter_length // 2 + 1,
                            hps.train.segment_size // hps.data.hop_length,
