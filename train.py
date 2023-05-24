@@ -354,6 +354,8 @@ def evaluate(hps, net_g, net_d, eval_loader, writer_eval, logger):
             break
 
         c, spec, y = c.cuda(0), spec.cuda(0), y.cuda(0)
+        # hold a `y` before slice for audio_dict
+        y_hold = y
         mel = spec_to_mel_torch(spec, hps.data.filter_length,
                                 hps.data.n_mel_channels, hps.data.sampling_rate,
                                 hps.data.mel_fmin, hps.data.mel_fmax)
@@ -426,7 +428,7 @@ def evaluate(hps, net_g, net_d, eval_loader, writer_eval, logger):
         "gen/mel": utils.plot_spectrogram_to_numpy(y_hat_mel[0].cpu().numpy()),
         "gt/mel": utils.plot_spectrogram_to_numpy(mel[0].cpu().numpy())
     }
-    audio_dict = {"gen/audio": y_hat[0], "gt/audio": y[0]}
+    audio_dict = {"gen/audio": y_hat[0], "gt/audio": y_hold[0]}
     utils.summarize(
         writer=writer_eval,
         scalars=eval_dict,
