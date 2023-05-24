@@ -14,6 +14,8 @@ if __name__ == "__main__":
         type=str,
         default="./dataset/vctk-16k",
         help="path to source dir")
+    parser.add_argument("--valnum_per_spk", type=int, default=2)
+    parser.add_argument("--testnum_per_spk", type=int, default=10)
     args = parser.parse_args()
 
     train_paths = []
@@ -28,9 +30,9 @@ if __name__ == "__main__":
         wavs = os.listdir(os.path.join(source_dir, speaker))
         wav_paths = [str(source_dir / speaker / wav) for wav in wavs]
         shuffle(wav_paths)
-        train_paths += wav_paths[2:-10]
-        val_paths += wav_paths[:2]
-        test_paths += wav_paths[-10:]
+        train_paths += wav_paths[args.valnum_per_spk:-args.testnum_per_spk]
+        val_paths += wav_paths[:args.valnum_per_spk]
+        test_paths += wav_paths[-args.testnum_per_spk:]
 
     shuffle(train_paths)
     shuffle(val_paths)

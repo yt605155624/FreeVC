@@ -1,4 +1,5 @@
 #!/bin/bash
+# VCTK 预训练好的模型只 fintune 新数据集
 
 set -e
 
@@ -8,7 +9,7 @@ stop_stage=100
 train_output_path=exp/default
 port=8001
 # dir to set part/all of dump dataset and experiment result
-root_dir='/nfs-speech-cpfs/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_base/FreeVC'
+root_dir='/nfs-speech-cpfs/dev/yuantian04/Voice_Conversion/FreeVC/FreeVC_addspk/FreeVC'
 ptfile_name='G_12500.pth'
 config_path=configs/freevc.json
 model=freevc
@@ -20,7 +21,7 @@ source ./local/parse_options.sh || exit 1
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     # prepare data
-    CUDA_VISIBLE_DEVICES=${gpus} ./local/preprocess.sh ${root_dir}|| exit -1
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/preprocess_addspk.sh ${root_dir}|| exit -1
 fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then

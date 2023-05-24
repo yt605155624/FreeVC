@@ -48,8 +48,6 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
                 os.path.getsize(audiopath[0]) // (2 * self.hop_length))
         self.lengths = lengths
 
-    # 如何让 get_audio 更加鲁棒？
-
     def get_audio(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
         if sampling_rate != self.sampling_rate:
