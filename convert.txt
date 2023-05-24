@@ -1,2 +1,10 @@
 title1|DUMMY/p225/p225_001.wav|DUMMY/p226/p226_002.wav
 title2|DUMMY/p226/p226_002.wav|DUMMY/p225/p225_001.wav
+title3|test_wav/goat_01.wav|DUMMY/p226/p226_002.wav
+title4|test_wav/goat_01.wav|DUMMY/p225/p225_001.wav
+title5|DUMMY/p226/p226_002.wav|test_wav/goat_01.wav
+title6|test_wav/goat_01.wav|test_wav/yuantian01_03.wav
+title7|test_wav/goat_01.wav|test_wav/deer_ai_newer-female-professional_recording-writing-9.wav
+title8|test_wav/goat_01.wav|test_wav/deer_ai_newer-female-professional_recording-writing-2305.wav
+title9|test_wav/goat_01.wav|test_wav/snowball_newer-domain_math_5523.wav
+title10|test_wav/goat_01.wav|test_wav/snowball_newer-interjection_record_9.wav
