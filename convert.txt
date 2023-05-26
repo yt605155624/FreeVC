@@ -8,3 +8,7 @@ title7|test_wav/goat_01.wav|test_wav/deer_ai_newer-female-professional_recording
 title8|test_wav/goat_01.wav|test_wav/deer_ai_newer-female-professional_recording-writing-2305.wav
 title9|test_wav/goat_01.wav|test_wav/snowball_newer-domain_math_5523.wav
 title10|test_wav/goat_01.wav|test_wav/snowball_newer-interjection_record_9.wav
+title11|test_wav/deer_ai_newer-female-professional_recording-writing-9.wav|test_wav/snowball_newer-interjection_record_9.wav
+title12|test_wav/deer_ai_newer-female-professional_recording-writing-2305.wav|test_wav/snowball_newer-interjection_record_9.wav
+title13|test_wav/snowball_newer-interjection_record_9.wav|test_wav/deer_ai_newer-female-professional_recording-writing-9.wav
+title14|test_wav/snowball_newer-domain_math_5523.wav|test_wav/deer_ai_newer-female-professional_recording-writing-9.wav
