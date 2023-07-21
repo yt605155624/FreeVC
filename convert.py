@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-import time
 
 import librosa
 import torch
@@ -9,10 +8,11 @@ from mel_processing import mel_spectrogram_torch
 from models import SynthesizerTrn
 from scipy.io.wavfile import write
 from speaker_encoder.voice_encoder import SpeakerEncoder
-from tqdm import tqdm
+from timer import timer
 
 import utils
 logging.getLogger('numba').setLevel(logging.WARNING)
+logging.getLogger('timer').setLevel(logging.WARNING)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -33,7 +33,6 @@ if __name__ == "__main__":
         type=str,
         default="output/freevc",
         help="path to output dir")
-    parser.add_argument("--use_timestamp", default=False, action="store_true")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -45,7 +44,7 @@ if __name__ == "__main__":
                            **hps.model).cuda()
     _ = net_g.eval()
     print("Loading checkpoint...")
-    print("args.ptfile:",args.ptfile)
+    print("args.ptfile:", args.ptfile)
     _ = utils.load_checkpoint(args.ptfile, net_g, None, True)
 
     print("Loading WavLM for content...")
@@ -66,39 +65,46 @@ if __name__ == "__main__":
             tgts.append(tgt)
 
     print("Synthesizing...")
+    N = 0
+    T = 0
     with torch.no_grad():
-        for line in tqdm(zip(titles, srcs, tgts)):
+        for line in zip(titles, srcs, tgts):
             title, src, tgt = line
             # tgt
-            wav_tgt, _ = librosa.load(tgt, sr=hps.data.sampling_rate)
-            wav_tgt, _ = librosa.effects.trim(wav_tgt, top_db=20)
-            # 会将一个长音频切成多个片后求均值
-            if hps.model.use_spk:
-                g_tgt = smodel.embed_utterance(wav_tgt)
-                g_tgt = torch.from_numpy(g_tgt).unsqueeze(0).cuda()
-            else:
-                wav_tgt = torch.from_numpy(wav_tgt).unsqueeze(0).cuda()
-                mel_tgt = mel_spectrogram_torch(
-                    wav_tgt, hps.data.filter_length, hps.data.n_mel_channels,
-                    hps.data.sampling_rate, hps.data.hop_length,
-                    hps.data.win_length, hps.data.mel_fmin, hps.data.mel_fmax)
-            # src
-            wav_src, _ = librosa.load(src, sr=hps.data.sampling_rate)
-            wav_src = torch.from_numpy(wav_src).unsqueeze(0).cuda()
-            c = utils.get_content(cmodel, wav_src)
+            with timer() as t:
+                wav_tgt, _ = librosa.load(tgt, sr=hps.data.sampling_rate)
+                wav_tgt, _ = librosa.effects.trim(wav_tgt, top_db=20)
 
-            if hps.model.use_spk:
-                audio = net_g.infer(c, g=g_tgt)
-            else:
-                audio = net_g.infer(c, mel=mel_tgt)
-            audio = audio[0][0].data.cpu().float().numpy()
-            if args.use_timestamp:
-                timestamp = time.strftime("%m-%d_%H-%M", time.localtime())
-                write(
-                    os.path.join(args.outdir,
-                                 "{}.wav".format(timestamp + "_" + title)),
-                    hps.data.sampling_rate, audio)
-            else:
-                write(
-                    os.path.join(args.outdir, f"{title}.wav"),
-                    hps.data.sampling_rate, audio)
+                # 会将一个长音频切成多个片后求均值
+                if hps.model.use_spk:
+                    g_tgt = smodel.embed_utterance(wav_tgt)
+                    g_tgt = torch.from_numpy(g_tgt).unsqueeze(0).cuda()
+                else:
+                    wav_tgt = torch.from_numpy(wav_tgt).unsqueeze(0).cuda()
+                    mel_tgt = mel_spectrogram_torch(
+                        wav_tgt, hps.data.filter_length,
+                        hps.data.n_mel_channels, hps.data.sampling_rate,
+                        hps.data.hop_length, hps.data.win_length,
+                        hps.data.mel_fmin, hps.data.mel_fmax)
+                # src
+                wav_np, _ = librosa.load(src, sr=hps.data.sampling_rate)
+                wav_src = torch.from_numpy(wav_np).unsqueeze(0).cuda()
+                c = utils.get_content(cmodel, wav_src)
+                # print("title:",title,"c.shape:",c.shape)
+                if hps.model.use_spk:
+                    audio = net_g.infer(c, g=g_tgt)
+                else:
+                    audio = net_g.infer(c, mel=mel_tgt)
+                audio = audio[0][0].data.cpu().float().numpy()
+            N += wav_np.size
+            T += t.elapse
+            speed = wav_np.size / t.elapse
+            rtf = hps.data.sampling_rate / speed
+            print(
+                f"{title},  wave: {wav_np.shape}, time: {t.elapse}s, Hz: {speed}, RTF: {rtf}."
+            )
+            write(
+                os.path.join(args.outdir, f"{title}.wav"),
+                hps.data.sampling_rate, audio)
+            print(f"{title} done!")
+    print(f"convert speed: {N / T}Hz, RTF: {hps.data.sampling_rate / (N / T) }")
