@@ -72,6 +72,7 @@ if __name__ == "__main__":
             # tgt
             wav_tgt, _ = librosa.load(tgt, sr=hps.data.sampling_rate)
             wav_tgt, _ = librosa.effects.trim(wav_tgt, top_db=20)
+            # 会将一个长音频切成多个片后求均值
             if hps.model.use_spk:
                 g_tgt = smodel.embed_utterance(wav_tgt)
                 g_tgt = torch.from_numpy(g_tgt).unsqueeze(0).cuda()
