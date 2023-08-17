@@ -61,6 +61,7 @@ def main():
 
 
 def run(rank, n_gpus, hps):
+    torch.cuda.set_device(rank)
     global global_step
     global global_total_epoch
     if rank == 0:
