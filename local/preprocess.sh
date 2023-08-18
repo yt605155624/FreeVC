@@ -1,6 +1,6 @@
 #!/bin/bash
-stage=5
-stop_stage=5
+stage=0
+stop_stage=0
 root_dir=$1
 # 增加新的数据集的时候，把 vctk 生成的 dataset mv 为 dataset_0、filelists_0
 # 新数据集 mv 为 dataset_1、filelists_1 
@@ -55,69 +55,25 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         --num_workers=12
 fi
 
+# 68 ~ 92
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     echo "preprocess_sr.py start !"
-    CUDA_VISIBLE_DEVICES=0 python3 preprocess_sr.py \
-        --sr=16000 \
-        --config=hifigan/config.json \
-        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
-        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
-        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
-        --min=68 \
-        --max=72 \
-        --num_workers=20 &
-    pid0="$!"
-    CUDA_VISIBLE_DEVICES=0 python3 preprocess_sr.py \
-        --sr=16000 \
-        --config=hifigan/config.json \
-        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
-        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
-        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
-        --min=73 \
-        --max=76 \
-        --num_workers=20 &
-    pid1="$!"
-    CUDA_VISIBLE_DEVICES=1 python3 preprocess_sr.py \
-        --sr=16000 \
-        --config=hifigan/config.json \
-        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
-        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
-        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
-        --min=77 \
-        --max=80 \
-        --num_workers=20 &
-    pid2="$!"
-    CUDA_VISIBLE_DEVICES=1 python3 preprocess_sr.py \
-        --sr=16000 \
-        --config=hifigan/config.json \
-        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
-        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
-        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
-        --min=81 \
-        --max=84 \
-        --num_workers=20 &
-    pid3="$!"
-    CUDA_VISIBLE_DEVICES=2 python3 preprocess_sr.py \
-        --sr=16000 \
-        --config=hifigan/config.json \
-        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
-        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
-        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
-        --min=85 \
-        --max=88 \
-        --num_workers=20 &
-    pid4="$!"
-    CUDA_VISIBLE_DEVICES=2 python3 preprocess_sr.py \
-        --sr=16000 \
-        --config=hifigan/config.json \
-        --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
-        --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
-        --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
-        --min=89 \
-        --max=92 \
-        --num_workers=20 &
-    pid5="$!"
-    wait "$pid0" "$pid1" "$pid2" "$pid3" "$pid4" "$pid5"
+    for rank_id in {0..4}; do
+        min=$((68 + 5 * rank_id))
+        max=$((68 + 5 * rank_id + 4))
+        gpu_id=$((rank_id / 2))
+        CUDA_VISIBLE_DEVICES=${gpu_id} python3 preprocess_sr.py \
+            --sr=16000 \
+            --config=hifigan/config.json \
+            --in_dir=${root_dir}/dataset_${dataset_num}/vctk-22k \
+            --wav_dir=${root_dir}/dataset_${dataset_num}/sr/wav \
+            --ssl_dir=${root_dir}/dataset_${dataset_num}/sr/wavlm \
+            --min=${min} \
+            --max=${max} \
+            --num_workers=20 &
+        eval pid${rank_id}="$!"
+    done
+    wait "$pid0" "$pid1" "$pid2" "$pid3" "$pid4"
     echo "preprocess_sr.py end !"
 fi
 
