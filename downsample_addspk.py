@@ -16,7 +16,7 @@ def process(wav_path):
     # speaker 'p280', 'p315' are excluded (no mic2)
     wav_path_list = str(wav_path).split('/')
     speaker = wav_path_list[-2]
-    wav_name=wav_path_list[-1]
+    wav_name = wav_path_list[-1]
     if '.wav' in str(wav_path):
         spk_dir1 = args.out_dir1 / speaker
         spk_dir1.mkdir(parents=True, exist_ok=True)
@@ -40,7 +40,6 @@ def process(wav_path):
         sf.write(str(save_path2), wav2, samplerate=args.sr2, subtype='PCM_16')
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sr1", type=int, default=16000, help="sampling rate")
@@ -50,31 +49,37 @@ if __name__ == "__main__":
     # 不可以加等号, 不可以加逗号
     parser.add_argument(
         "--spk_names",
-        type=list,
-        nargs='+',
+        type=str,
+        nargs='*',
         default=["deer_ai_newer"],
         help="name of speakers' files you want in in_dir")
-    parser.add_argument("--out_dir1", type=str, default="./dataset/vctk-16k", help="path to target dir")
-    parser.add_argument("--out_dir2", type=str, default="./dataset/vctk-22k", help="path to target dir")
+    parser.add_argument(
+        "--out_dir1",
+        type=str,
+        default="./dataset/vctk-16k",
+        help="path to target dir")
+    parser.add_argument(
+        "--out_dir2",
+        type=str,
+        default="./dataset/vctk-22k",
+        help="path to target dir")
     parser.add_argument(
         "--num-cpu", type=int, default=20, help="number of process.")
     args = parser.parse_args()
 
-    pool = Pool(processes=cpu_count()-2)
+    pool = Pool(processes=cpu_count() - 2)
     args.in_dir = Path(args.in_dir).expanduser()
 
     args.out_dir1 = Path(args.out_dir1).expanduser()
     args.out_dir1.mkdir(parents=True, exist_ok=True)
-    
+
     args.out_dir2 = Path(args.out_dir2).expanduser()
     args.out_dir2.mkdir(parents=True, exist_ok=True)
 
-    wav_paths= []
+    wav_paths = []
     new_spk_names = []
-    
-    for item in args.spk_names:
-        new_spk_names.append(''.join(item))
-    args.spk_names = new_spk_names
+
+    print("args.spk_names:", args.spk_names)
 
     for speaker in args.spk_names:
         spk_dir = args.in_dir / speaker
@@ -82,7 +87,7 @@ if __name__ == "__main__":
             for wav_name in os.listdir(spk_dir):
                 wav_paths.append(spk_dir / wav_name)
 
-    print("len(wav_paths):",len(wav_paths))
+    print("len(wav_paths):", len(wav_paths))
     with ThreadPoolExecutor(args.num_cpu) as pool:
         with tqdm(total=len(wav_paths), desc="resampling") as pbar:
             futures = []
